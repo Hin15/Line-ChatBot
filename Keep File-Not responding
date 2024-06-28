@@ -1,0 +1,103 @@
+// @ts-nocheck
+var CHANNEL_TOKEN = "rKVIyYFUBusd/MlC64KJdnC9ueFLoU7NbOiXjQs75WjIjjyF8+gvGp0UechnckJOhBJ6od8nqnc0ySJEt3dT0sENilEjfSpc+GPd6yzek9L+9zjtTbdfu2ZdQG6xsQPZewq07HOX1I9wWsxpPsyVZQdB04t89/1O/w1cDnyilFU=";
+var GDRIVE_FOLDER_ID = "1SNUl2xZ7nNZT2yMYyw0r9YnLdquiTtgQ";
+var GDRIVE_FOLDER_IMAGE_ID = "1ZGpLEtZOv_ix8d-YdfFoALXh5pLncFW_";
+var GDRIVE_FOLDER_VIDEO_ID = "1qEA0L13M97m8bYIBPpG6IcfWszEw8Uu7";
+var GDRIVE_FOLDER_AUDIO_ID = "1dxqUDyiXyL4LDL2md682sdaajnsSTNBC";
+
+function toDrive(messageId, meType, mType, gdriveId) {
+  var url = "https://api-data.line.me/v2/bot/message/" + messageId + "/content";
+  var headers = {
+    "headers": { "Authorization": "Bearer " + CHANNEL_TOKEN }
+  };
+
+  try {
+    var getcontent = UrlFetchApp.fetch(url, headers);
+    var blob = getcontent.getBlob();
+    var fileBlob = Utilities.newBlob(blob.getBytes(), meType, messageId + mType);
+    var fileId = DriveApp.getFolderById(gdriveId).createFile(fileBlob).getId();
+    return 'https://drive.google.com/uc?id=' + fileId;
+  } catch (error) {
+    Logger.log("Error uploading to Google Drive: " + error);
+    return null;
+  }
+}
+
+function handleFileMessage(event) {
+  var fileName = event.message.fileName;
+  var fileType = fileName.split('.').pop(); // ดึงนามสกุลไฟล์
+  var fileN = fileName.substring(0, fileName.lastIndexOf('.')); // ดึงชื่อไฟล์โดยไม่รวมนามสกุล
+  var mimetype = getMimeType(fileType);
+
+  if (mimetype !== "undefined") {
+    var messageId = event.message.id;
+    var url = "https://api-data.line.me/v2/bot/message/" + messageId + "/content";
+    var headers = {
+      "headers": { "Authorization": "Bearer " + CHANNEL_TOKEN }
+    };
+
+    try {
+      var getcontent = UrlFetchApp.fetch(url, headers);
+      var blob = getcontent.getBlob();
+      var fileBlob = Utilities.newBlob(blob.getBytes(), mimetype, fileName);
+      var fileId = DriveApp.getFolderById(GDRIVE_FOLDER_ID).createFile(fileBlob).getId();
+      // No reply message is sent
+    } catch (error) {
+      Logger.log("Error uploading to Google Drive: " + error);
+      // No reply message is sent
+    }
+  } else {
+    // No reply message is sent
+  }
+}
+
+function getMimeType(fileType) {
+  var mimeTypes = {
+    "pdf": "application/pdf",
+    "zip": "application/zip",
+    "rar": "application/vnd.rar",
+    "7z": "application/x-7z-compressed",
+    "doc": "application/msword",
+    "xls": "application/vnd.ms-excel",
+    "ppt": "application/vnd.ms-powerpoint",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "mp4": "video/mp4",
+    "mp3": "audio/mpeg",
+    "png": "image/png",
+    "gif": "image/gif",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    // Add more mime types as needed
+  };
+
+  return mimeTypes[fileType] || "undefined";
+}
+
+function doPost(e) {
+  var value = JSON.parse(e.postData.contents);
+  var event = value.events[0];
+  var type = event.type;
+
+  switch (type) {
+    case 'message':
+      var messageType = event.message.type;
+
+      if (messageType == 'file') {
+        handleFileMessage(event);
+      } else if (messageType == 'image') {
+        toDrive(event.message.id, "image/jpeg", ".jpg", GDRIVE_FOLDER_IMAGE_ID);
+      } else if (messageType == 'video') {
+        toDrive(event.message.id, "video/mp4", ".mp4", GDRIVE_FOLDER_VIDEO_ID);
+      } else if (messageType == 'audio') {
+        toDrive(event.message.id, "audio/mpeg", ".mp3", GDRIVE_FOLDER_AUDIO_ID);
+      }
+      break;
+
+    // Handle other event types if needed
+
+    default:
+      break;
+  }
+}
